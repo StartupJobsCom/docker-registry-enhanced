@@ -1,0 +1,37 @@
+#!/bin/bash
+
+REPO_DIR="/var/lib/registry/docker/registry/v2/repositories"
+REPOSITORIES=($(ls ${REPO_DIR}/))
+
+for REPOSITORY in "${REPOSITORIES[@]}"
+do
+  echo ""
+  echo ""
+  echo "Reading tags for ${REPOSITORY}"
+
+  TAGS=($(ls ${REPO_DIR}/${REPOSITORY}/_manifests/tags/))
+
+  for TAG in "${TAGS[@]}"
+  do
+    echo "Removing ${REPOSITORY}:${TAG}"
+
+    CURRENT_HASH=$(cat ${REPO_DIR}/${REPOSITORY}/_manifests/tags/${TAG}/current/link | cut -c8-)
+
+    echo "Current sha256 in use is ${CURRENT_HASH}"
+
+    HASHES=$(ls ${REPO_DIR}/${REPOSITORY}/_manifests/tags/${TAG}/index/sha256/)
+
+    for HASH in ${HASHES[@]}
+    do
+      if [ "$CURRENT_HASH" != "$HASH" ]
+      then
+        echo "${HASH} is not used anymore, removing."
+        rm -rf ${REPO_DIR}/${REPOSITORY}/_manifests/tags/${TAG}/index/sha256/${HASH}
+        rm -rf ${REPO_DIR}/${REPOSITORY}/_manifests/revisions/sha256/${HASH}
+      fi
+    done
+  done
+done
+
+/bin/registry garbage-collect --dry-run /etc/docker/registry/config.yml
+
